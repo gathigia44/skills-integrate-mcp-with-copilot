@@ -3,6 +3,9 @@ document.addEventListener("DOMContentLoaded", () => {
   const activitySelect = document.getElementById("activity");
   const signupForm = document.getElementById("signup-form");
   const messageDiv = document.getElementById("message");
+  const categoryFilter = document.getElementById("category-filter");
+  const sortSelect = document.getElementById("sort-select");
+  const searchInput = document.getElementById("search-input");
 
   // Function to fetch activities from API
   async function fetchActivities() {
@@ -12,6 +15,9 @@ document.addEventListener("DOMContentLoaded", () => {
 
       // Clear loading message
       activitiesList.innerHTML = "";
+      if (activitySelect) {
+        activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+      }
 
       // Populate activities list
       Object.entries(activities).forEach(([name, details]) => {
@@ -54,6 +60,79 @@ document.addEventListener("DOMContentLoaded", () => {
         option.value = name;
         option.textContent = name;
         activitySelect.appendChild(option);
+      });
+
+      // Add event listeners to delete buttons
+      document.querySelectorAll(".delete-btn").forEach((button) => {
+        button.addEventListener("click", handleUnregister);
+      });
+    } catch (error) {
+      activitiesList.innerHTML =
+        "<p>Failed to load activities. Please try again later.</p>";
+      console.error("Error fetching activities:", error);
+    }
+  }
+  // Function to fetch activities from API with filters
+  async function fetchActivities() {
+    try {
+      // Build query params
+      const params = [];
+      if (categoryFilter && categoryFilter.value) params.push(`category=${encodeURIComponent(categoryFilter.value)}`);
+      if (sortSelect && sortSelect.value) params.push(`sort=${encodeURIComponent(sortSelect.value)}`);
+      if (searchInput && searchInput.value) params.push(`search=${encodeURIComponent(searchInput.value)}`);
+      const query = params.length ? `?${params.join("&")}` : "";
+      const response = await fetch(`/activities${query}`);
+      const activities = await response.json();
+
+      // Clear loading message and dropdown
+      activitiesList.innerHTML = "";
+      if (activitySelect) {
+        activitySelect.innerHTML = '<option value="">-- Select an activity --</option>';
+      }
+
+      // Populate activities list
+      Object.entries(activities).forEach(([name, details]) => {
+        const activityCard = document.createElement("div");
+        activityCard.className = "activity-card";
+
+        const spotsLeft = details.max_participants - details.participants.length;
+
+        // Create participants HTML with delete icons instead of bullet points
+        const participantsHTML =
+          details.participants.length > 0
+            ? `<div class="participants-section">
+              <h5>Participants:</h5>
+              <ul class="participants-list">
+                ${details.participants
+                  .map(
+                    (email) =>
+                      `<li><span class="participant-email">${email}</span><button class="delete-btn" data-activity="${name}" data-email="${email}">❌</button></li>`
+                  )
+                  .join("")}
+              </ul>
+            </div>`
+            : `<p><em>No participants yet</em></p>`;
+
+        activityCard.innerHTML = `
+          <h4>${name}</h4>
+          <p>${details.description}</p>
+          <p><strong>Category:</strong> ${details.category || "N/A"}</p>
+          <p><strong>Schedule:</strong> ${details.schedule}</p>
+          <p><strong>Availability:</strong> ${spotsLeft} spots left</p>
+          <div class="participants-container">
+            ${participantsHTML}
+          </div>
+        `;
+
+        activitiesList.appendChild(activityCard);
+
+        // Add option to select dropdown
+        if (activitySelect) {
+          const option = document.createElement("option");
+          option.value = name;
+          option.textContent = name;
+          activitySelect.appendChild(option);
+        }
       });
 
       // Add event listeners to delete buttons
@@ -155,6 +234,14 @@ document.addEventListener("DOMContentLoaded", () => {
     }
   });
 
+  // Add event listeners for filter, sort, and search
+  if (categoryFilter) categoryFilter.addEventListener("change", fetchActivities);
+  if (sortSelect) sortSelect.addEventListener("change", fetchActivities);
+  if (searchInput) searchInput.addEventListener("input", () => {
+    // Debounce search
+    clearTimeout(searchInput._debounceTimeout);
+    searchInput._debounceTimeout = setTimeout(fetchActivities, 300);
+  });
   // Initialize app
   fetchActivities();
 });
